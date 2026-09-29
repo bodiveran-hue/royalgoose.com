@@ -1,0 +1,13 @@
+{
+  "name": "Royal Goose Elite Platform",
+  "short_name": "RoyalGoose",
+  "description": "Plateforme tout-en-un pour les clubs de football africains",
+  "theme_color": "#14532d",
+  "background_color": "#052e16",
+  "display": "standalone",
+  "start_url": "/",
+  "lang": "fr",
+  "icons": [
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

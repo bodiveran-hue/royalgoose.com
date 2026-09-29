@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.tmp-pdf-pages
+.vite
+dev-dist
+.env
+data/db.json
+data/outbox.json
