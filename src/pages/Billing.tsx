@@ -123,6 +123,7 @@ export function Settings() {
             <p className="font-semibold">{fr ? "Intégrations (clés .env)" : "Integrations (.env keys)"}</p>
             <ul className="mt-2 space-y-1 text-slate-600">
               <li>IA: {integrations.ai.label}</li>
+              {integrations.chatbot ? <li>ChatBotAI: {integrations.chatbot.label}</li> : null}
               <li>Stripe: {integrations.stripe.label}</li>
               <li>Google: {integrations.google.label}</li>
               <li>Calendar: {integrations.calendar.label}</li>

@@ -249,6 +249,7 @@ export function canAccess(role: Role, path: string) {
       path === "/app" ||
       path.startsWith("/app/calendar") ||
       path.startsWith("/app/messages") ||
+      path.startsWith("/app/chat") ||
       path.startsWith("/app/performance") ||
       path.startsWith("/app/settings") ||
       path.startsWith("/app/players") ||

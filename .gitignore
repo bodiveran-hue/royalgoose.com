@@ -9,3 +9,4 @@ dev-dist
 .env
 data/db.json
 data/outbox.json
+pr-agent-report.md

@@ -1,13 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { IntegrationsStatus } from "../src/lib/types";
+import { chatbotPublicConfig, selectAiProvider } from "./ai-provider";
 
 const DATA = path.resolve("data");
 export const OUTBOX = path.join(DATA, "outbox.json");
 
 export function integrationStatus(): IntegrationsStatus {
-  const anthropic = Boolean(process.env.ANTHROPIC_API_KEY);
-  const deepseek = Boolean(process.env.DEEPSEEK_API_KEY);
+  const ai = selectAiProvider();
+  const bot = chatbotPublicConfig();
   const stripe = Boolean(process.env.STRIPE_SECRET_KEY);
   const google = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
   const gcal = Boolean(process.env.GOOGLE_CALENDAR_ACCESS_TOKEN);
@@ -15,11 +16,13 @@ export function integrationStatus(): IntegrationsStatus {
   const smtp = Boolean(process.env.SMTP_URL);
   const yolo = Boolean(process.env.YOLO_VISION_URL);
   return {
-    ai: anthropic
-      ? { mode: "anthropic", label: "Claude (Anthropic)" }
-      : deepseek
-        ? { mode: "deepseek", label: "DeepSeek" }
-        : { mode: "local", label: "Moteur local (pas de clé AI)" },
+    ai: { mode: ai.mode, label: ai.label, fallback: ai.fallback },
+    chatbot: {
+      enabled: true,
+      label: bot.label,
+      widget: Boolean(bot.widgetId),
+      embed: Boolean(bot.embedUrl),
+    },
     stripe: stripe
       ? { mode: "stripe", label: "Stripe live checkout" }
       : { mode: "local", label: "Checkout local (STRIPE_SECRET_KEY absent)" },

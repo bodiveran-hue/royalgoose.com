@@ -9,6 +9,7 @@
     "dev:web": "vite",
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
+    "test": "tsx --test server/ai-provider.test.ts",
     "preview": "vite preview"
   },
   "engines": {

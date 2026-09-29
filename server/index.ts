@@ -8,7 +8,8 @@ import type { AppState, User } from "../src/lib/types";
 import { hashPassword, signToken, verifyPassword, verifyToken } from "./crypto";
 import { googleOAuthUrl, integrationStatus, sendEmail, stripeCheckout, googleCalendarSync } from "./integrations";
 import { mergeState, publicUser, visibleTo } from "./scope";
-import { designIdea, monthlyNarrative, negotiateDeal, tacticalBriefing, videoNote } from "./ai";
+import { chatReply, designIdea, monthlyNarrative, negotiateDeal, scoutRecommendation, tacticalBriefing, videoNote } from "./ai";
+import { chatbotPublicConfig } from "./ai-provider";
 
 const PORT = Number(process.env.PORT || process.env.API_PORT || 8787);
 const DB = path.resolve("data/db.json");
@@ -177,6 +178,10 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/api/integrations", (_req, res) => {
   res.json(integrationStatus());
+});
+
+app.get("/api/chatbot/config", (_req, res) => {
+  res.json(chatbotPublicConfig());
 });
 
 app.get("/api/auth/demo-users", (_req, res) => {
@@ -357,6 +362,23 @@ app.post("/api/ai/design", auth, async (req, res) => {
 
 app.post("/api/ai/video", auth, async (req, res) => {
   res.json(await videoNote(req.body));
+});
+
+app.post("/api/ai/scout", auth, async (req, res) => {
+  res.json(await scoutRecommendation(req.body));
+});
+
+app.post("/api/chat", auth, async (req, res) => {
+  const message = String((req.body as { message?: string })?.message || "").trim();
+  if (!message) return res.status(400).json({ error: "empty" });
+  const history = Array.isArray((req.body as { history?: unknown }).history)
+    ? ((req.body as { history: { role?: string; content?: string }[] }).history || [])
+        .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content as string }))
+    : [];
+  const locale = String((req.body as { locale?: string })?.locale || "fr");
+  const out = await chatReply({ message, locale, history });
+  res.json(out);
 });
 
 app.post("/api/billing/checkout", auth, async (req, res) => {

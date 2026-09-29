@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Textarea } from "../components/ui";
 import { formatXaf } from "../lib/utils";
+import { aiPost } from "../lib/api";
 import type { ScoutReport } from "../lib/types";
 
 export function Scouting() {
@@ -13,6 +14,18 @@ export function Scouting() {
   const list = state.scouts.filter((s) => country === "all" || s.country === country);
 
   const [form, setForm] = useState({ targetName: "", club: "", country: "Cameroun", position: "BU", age: 20, notes: "" });
+  const [aiBusy, setAiBusy] = useState(false);
+
+  async function aiNotes() {
+    if (!form.targetName) return;
+    setAiBusy(true);
+    try {
+      const json = await aiPost<{ text?: string }>("/api/ai/scout", { ...form, locale });
+      if (json.text) setForm((f) => ({ ...f, notes: json.text || f.notes }));
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   function add() {
     const report: ScoutReport = {
@@ -114,6 +127,9 @@ export function Scouting() {
           <Field label="Notes">
             <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
+          <Button variant="outline" onClick={() => void aiNotes()} disabled={!form.targetName || aiBusy}>
+            {aiBusy ? "…" : fr ? "Reco IA (ChatBotAI / ChatGPT)" : "AI rec (ChatBotAI / ChatGPT)"}
+          </Button>
           <Button onClick={add} disabled={!form.targetName}>
             {fr ? "Enregistrer" : "Save"}
           </Button>

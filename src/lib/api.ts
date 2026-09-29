@@ -99,6 +99,13 @@ export function sendReport(id: string) {
   return api<{ ok: boolean; mail?: { mode: string } }>(`/api/reports/${id}/send`, { method: "POST" });
 }
 
+export function sendChat(message: string, locale: string, history: { role: "user" | "assistant"; content: string }[]) {
+  return api<{ text: string; mode?: string; provider?: string }>("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({ message, locale, history }),
+  });
+}
+
 export function fetchOutbox() {
   return api<{ id: string; at: string; to: string[]; subject: string; body: string; mode: string }[]>("/api/outbox");
 }

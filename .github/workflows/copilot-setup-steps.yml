@@ -1,0 +1,22 @@
+name: Copilot coding agent setup
+
+# Official Copilot coding agent setup hook (job name must be copilot-setup-steps).
+# Enable the agent in repo Settings → Copilot → Coding agent if the org allows it.
+# Until then, the parallel review-agent workflow still posts PR audit comments.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened]
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci

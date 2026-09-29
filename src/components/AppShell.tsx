@@ -22,12 +22,14 @@ import {
   Sparkles,
   Users,
   Video,
+  Bot,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { canAccess, useApp } from "../context/AppContext";
 import { Wordmark } from "./Logo";
 import { Badge, Button } from "./ui";
+import { ChatbotDock } from "../pages/Chatbot";
 
 const NAV = [
   { to: "/app", icon: LayoutDashboard, key: "dashboard" as const, end: true },
@@ -40,6 +42,7 @@ const NAV = [
   { to: "/app/performance", icon: Activity, key: "performance" as const },
   { to: "/app/calendar", icon: CalendarDays, key: "calendar" as const },
   { to: "/app/messages", icon: MessageSquare, key: "messages" as const },
+  { to: "/app/chat", icon: Bot, key: "chat" as const },
   { to: "/app/design", icon: Palette, key: "design" as const },
   { to: "/app/control", icon: Cpu, key: "control" as const },
   { to: "/app/agents", icon: Sparkles, key: "agents" as const },
@@ -195,6 +198,7 @@ export function AppShell() {
         <main className="flex-1 p-4 md:p-6">
           <Outlet />
         </main>
+        {location.pathname !== "/app/chat" ? <ChatbotDock /> : null}
         <footer className="border-t border-slate-200 px-6 py-3 text-center text-xs text-slate-400">
           © 2026 Royal Goose Elite Platform — {club?.name ?? "Multi-clubs"}
         </footer>

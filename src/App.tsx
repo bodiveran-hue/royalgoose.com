@@ -17,6 +17,7 @@ import { AgentsPage, ControlCenter, DesignAI } from "./pages/AiOps";
 import { Reports, Tasks } from "./pages/Ops";
 import { Admin, Audit } from "./pages/Admin";
 import { Billing, Settings } from "./pages/Billing";
+import { ChatbotPage } from "./pages/Chatbot";
 import type { ReactNode } from "react";
 
 function Guard({ children }: { children: ReactNode }) {
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="performance" element={<Performance />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="messages" element={<Messages />} />
+        <Route path="chat" element={<ChatbotPage />} />
         <Route path="design" element={<DesignAI />} />
         <Route path="control" element={<ControlCenter />} />
         <Route path="agents" element={<AgentsPage />} />
