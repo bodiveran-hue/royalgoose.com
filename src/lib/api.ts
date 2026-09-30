@@ -99,8 +99,16 @@ export function sendReport(id: string) {
   return api<{ ok: boolean; mail?: { mode: string } }>(`/api/reports/${id}/send`, { method: "POST" });
 }
 
+export type ChatReply = {
+  text: string;
+  mode?: string;
+  provider?: string;
+  connected?: boolean;
+  error?: string;
+};
+
 export function sendChat(message: string, locale: string, history: { role: "user" | "assistant"; content: string }[]) {
-  return api<{ text: string; mode?: string; provider?: string }>("/api/chat", {
+  return api<ChatReply>("/api/chat", {
     method: "POST",
     body: JSON.stringify({ message, locale, history }),
   });

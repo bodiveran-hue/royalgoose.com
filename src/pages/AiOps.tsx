@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { Badge, Button, Card, PageHeader } from "../components/ui";
+import { AgentStatusChip, ChatTranscript } from "./Chatbot";
 
 export function DesignAI() {
   const { state, setState, user, log, locale } = useApp();
@@ -124,10 +125,23 @@ export function ControlCenter() {
 
 export function AgentsPage() {
   const { state, locale } = useApp();
-  const fr = locale === "fr";
+  const fr = locale !== "en";
   return (
     <div>
-      <PageHeader title={fr ? "8 Agents IA autonomes" : "8 autonomous AI agents"} subtitle={fr ? "Profils, missions, dernière action." : "Profiles, missions, last action."} />
+      <PageHeader
+        title={fr ? "Agents IA" : "AI agents"}
+        subtitle={
+          fr
+            ? "Parlez à l'agent dans l'app (ChatBotAI / ChatGPT via le serveur). Les 8 agents du club restent ci-dessous."
+            : "Talk to the in-app agent (ChatBotAI / ChatGPT via the server). The 8 club agents stay below."
+        }
+        actions={<AgentStatusChip />}
+      />
+      <div className="mb-6">
+        <p className="mb-2 text-sm font-semibold text-slate-700">{fr ? "Parler à l'agent" : "Talk to the agent"}</p>
+        <ChatTranscript locale={locale} tall />
+      </div>
+      <p className="mb-3 text-sm font-semibold text-slate-700">{fr ? "8 agents du club" : "8 club agents"}</p>
       <div className="grid gap-4 md:grid-cols-2">
         {state.agents.map((a) => (
           <Card key={a.id} className="p-5">

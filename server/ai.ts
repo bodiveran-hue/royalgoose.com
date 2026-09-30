@@ -2,12 +2,13 @@ import { integrationStatus } from "./integrations";
 import { chatbotaiEndpoint, openaiModel, providerChain, type EnvLike } from "./ai-provider";
 
 type FetchLike = typeof fetch;
-type AiOk = { text: string; provider: "chatbotai" | "openai" | "anthropic" | "deepseek" };
-type AiMiss = { text: ""; provider: "local" };
+type AiOk = { text: string; provider: "chatbotai" | "openai" | "anthropic" | "deepseek"; connected: true };
+type AiMiss = { text: ""; provider: "local"; connected: false; error?: string };
+type TryResult = { text: string | null; error?: string };
 
 export type CompleteResult = AiOk | AiMiss;
 
-type CompleteOpts = {
+export type CompleteOpts = {
   fetch?: FetchLike;
   env?: EnvLike;
 };
@@ -20,9 +21,47 @@ async function readJson(res: Response): Promise<Record<string, unknown>> {
   }
 }
 
-async function tryChatBotAI(prompt: string, fetchImpl: FetchLike, env: EnvLike): Promise<string | null> {
+export function sanitizeAiError(msg: string): string {
+  return msg
+    .replace(/sk-[a-zA-Z0-9_-]+/gi, "sk-***")
+    .replace(/Bearer\s+\S+/gi, "Bearer ***")
+    .slice(0, 180);
+}
+
+function httpFailed(res: { ok?: boolean; status?: number }): boolean {
+  if (typeof res.ok === "boolean") return !res.ok;
+  if (typeof res.status === "number") return res.status >= 400;
+  return false;
+}
+
+function errorFromRes(name: string, res: { status?: number }, json: Record<string, unknown>): string {
+  const err = json.error;
+  const raw =
+    typeof err === "string"
+      ? err
+      : err && typeof err === "object" && "message" in err
+        ? String((err as { message?: unknown }).message || "")
+        : typeof json.message === "string"
+          ? json.message
+          : `HTTP ${res.status ?? "error"}`;
+  return `${name}_${res.status ?? "err"}: ${sanitizeAiError(raw || `HTTP ${res.status ?? "error"}`)}`;
+}
+
+function extractChatText(json: Record<string, unknown>): string | null {
+  const choices = json.choices as { message?: { content?: string } }[] | undefined;
+  const fromChoice = choices?.[0]?.message?.content?.trim();
+  if (fromChoice) return fromChoice;
+  const content = json.content as { text?: string }[] | undefined;
+  return (
+    content?.[0]?.text?.trim() ||
+    (typeof json.reply === "string" ? json.reply.trim() : null) ||
+    (typeof json.text === "string" ? json.text.trim() : null)
+  );
+}
+
+async function tryChatBotAI(prompt: string, fetchImpl: FetchLike, env: EnvLike): Promise<TryResult> {
   const key = env.CHATBOTAI_API_KEY?.trim();
-  if (!key) return null;
+  if (!key) return { text: null };
   const res = await fetchImpl(chatbotaiEndpoint(env), {
     method: "POST",
     headers: {
@@ -36,16 +75,14 @@ async function tryChatBotAI(prompt: string, fetchImpl: FetchLike, env: EnvLike):
     }),
   });
   const json = await readJson(res);
-  const choices = json.choices as { message?: { content?: string } }[] | undefined;
-  const text = choices?.[0]?.message?.content?.trim();
-  if (text) return text;
-  const content = json.content as { text?: string }[] | undefined;
-  return content?.[0]?.text?.trim() || (typeof json.reply === "string" ? json.reply.trim() : null) || (typeof json.text === "string" ? json.text.trim() : null);
+  if (httpFailed(res)) return { text: null, error: errorFromRes("chatbotai", res, json) };
+  const text = extractChatText(json);
+  return text ? { text } : { text: null, error: "chatbotai_empty" };
 }
 
-async function tryOpenAI(prompt: string, fetchImpl: FetchLike, env: EnvLike): Promise<string | null> {
+async function tryOpenAI(prompt: string, fetchImpl: FetchLike, env: EnvLike): Promise<TryResult> {
   const key = env.OPENAI_API_KEY?.trim();
-  if (!key) return null;
+  if (!key) return { text: null };
   const res = await fetchImpl("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -59,14 +96,14 @@ async function tryOpenAI(prompt: string, fetchImpl: FetchLike, env: EnvLike): Pr
     }),
   });
   const json = await readJson(res);
-  const choices = json.choices as { message?: { content?: string } }[] | undefined;
-  const text = choices?.[0]?.message?.content?.trim();
-  return text || null;
+  if (httpFailed(res)) return { text: null, error: errorFromRes("openai", res, json) };
+  const text = extractChatText(json);
+  return text ? { text } : { text: null, error: "openai_empty" };
 }
 
-async function tryAnthropic(prompt: string, fetchImpl: FetchLike, env: EnvLike): Promise<string | null> {
+async function tryAnthropic(prompt: string, fetchImpl: FetchLike, env: EnvLike): Promise<TryResult> {
   const key = env.ANTHROPIC_API_KEY?.trim();
-  if (!key) return null;
+  if (!key) return { text: null };
   const res = await fetchImpl("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -81,14 +118,15 @@ async function tryAnthropic(prompt: string, fetchImpl: FetchLike, env: EnvLike):
     }),
   });
   const json = await readJson(res);
+  if (httpFailed(res)) return { text: null, error: errorFromRes("anthropic", res, json) };
   const content = json.content as { text?: string }[] | undefined;
   const text = content?.[0]?.text?.trim();
-  return text || null;
+  return text ? { text } : { text: null, error: "anthropic_empty" };
 }
 
-async function tryDeepSeek(prompt: string, fetchImpl: FetchLike, env: EnvLike): Promise<string | null> {
+async function tryDeepSeek(prompt: string, fetchImpl: FetchLike, env: EnvLike): Promise<TryResult> {
   const key = env.DEEPSEEK_API_KEY?.trim();
-  if (!key) return null;
+  if (!key) return { text: null };
   const res = await fetchImpl("https://api.deepseek.com/chat/completions", {
     method: "POST",
     headers: {
@@ -101,35 +139,31 @@ async function tryDeepSeek(prompt: string, fetchImpl: FetchLike, env: EnvLike): 
     }),
   });
   const json = await readJson(res);
-  const choices = json.choices as { message?: { content?: string } }[] | undefined;
-  const text = choices?.[0]?.message?.content?.trim();
-  return text || null;
+  if (httpFailed(res)) return { text: null, error: errorFromRes("deepseek", res, json) };
+  const text = extractChatText(json);
+  return text ? { text } : { text: null, error: "deepseek_empty" };
 }
 
-/** ChatBotAI → OpenAI → Anthropic → DeepSeek → local. A failed live call falls through. */
+/** ChatBotAI → OpenAI → Anthropic → DeepSeek → local. A failed live call falls through, with the error kept. */
 export async function complete(prompt: string, opts: CompleteOpts = {}): Promise<CompleteResult> {
   const fetchImpl = opts.fetch ?? fetch;
   const env = opts.env ?? process.env;
+  let lastError: string | undefined;
   for (const provider of providerChain(env)) {
+    if (provider === "local") break;
     try {
-      if (provider === "chatbotai") {
-        const text = await tryChatBotAI(prompt, fetchImpl, env);
-        if (text) return { text, provider: "chatbotai" };
-      } else if (provider === "openai") {
-        const text = await tryOpenAI(prompt, fetchImpl, env);
-        if (text) return { text, provider: "openai" };
-      } else if (provider === "anthropic") {
-        const text = await tryAnthropic(prompt, fetchImpl, env);
-        if (text) return { text, provider: "anthropic" };
-      } else if (provider === "deepseek") {
-        const text = await tryDeepSeek(prompt, fetchImpl, env);
-        if (text) return { text, provider: "deepseek" };
-      }
-    } catch {
-      /* try the next provider */
+      let out: TryResult = { text: null };
+      if (provider === "chatbotai") out = await tryChatBotAI(prompt, fetchImpl, env);
+      else if (provider === "openai") out = await tryOpenAI(prompt, fetchImpl, env);
+      else if (provider === "anthropic") out = await tryAnthropic(prompt, fetchImpl, env);
+      else if (provider === "deepseek") out = await tryDeepSeek(prompt, fetchImpl, env);
+      if (out.text) return { text: out.text, provider, connected: true };
+      if (out.error) lastError = out.error;
+    } catch (err) {
+      lastError = `${provider}_error: ${sanitizeAiError(err instanceof Error ? err.message : "network")}`;
     }
   }
-  return { text: "", provider: "local" };
+  return { text: "", provider: "local", connected: false, error: lastError };
 }
 
 export async function tacticalBriefing(input: { formation: string; prompt: string; locale: string; opponent?: string }) {
@@ -223,20 +257,33 @@ export async function scoutRecommendation(input: {
   return { text, provider: "local" as const, mode: "local" };
 }
 
-export async function chatReply(input: {
-  message: string;
-  locale: string;
-  history?: { role: "user" | "assistant"; content: string }[];
-}) {
+export async function chatReply(
+  input: {
+    message: string;
+    locale: string;
+    history?: { role: "user" | "assistant"; content: string }[];
+  },
+  opts: CompleteOpts = {},
+) {
   const history = (input.history || []).slice(-8);
   const transcript = history.map((m) => `${m.role}: ${m.content}`).join("\n");
   const prompt = `Tu es l'assistant ChatBotAI intégré à Royal Goose (clubs de football africains). Réponds en ${input.locale === "en" ? "anglais" : "français"}, 2-6 phrases concrètes.\n${transcript}\nuser: ${input.message}`;
-  const ai = await complete(prompt);
-  if (ai.text) return { ...ai, mode: ai.provider };
+  const ai = await complete(prompt, opts);
+  if (ai.text) return { ...ai, mode: ai.provider, connected: true };
   const fr = input.locale !== "en";
   const snippet = input.message.slice(0, 120);
-  const text = fr
-    ? `Moteur local ChatBotAI: message reçu (« ${snippet} »). Réglez CHATBOTAI_API_KEY ou OPENAI_API_KEY sur Railway pour des réponses ChatGPT.`
-    : `Local ChatBotAI engine: got “${snippet}”. Set CHATBOTAI_API_KEY or OPENAI_API_KEY on Railway for ChatGPT replies.`;
-  return { text, provider: "local" as const, mode: "local" };
+  const err = "error" in ai ? ai.error : undefined;
+  const authFail = Boolean(err && /_401|_403/.test(err));
+  const text = authFail
+    ? fr
+      ? `Agent IA déconnecté (${err}). La clé OpenAI/ChatBotAI sur Railway a été rejetée. Moteur local — message reçu (« ${snippet} »).`
+      : `AI agent disconnected (${err}). Railway OpenAI/ChatBotAI key was rejected. Local engine — got “${snippet}”.`
+    : err
+      ? fr
+        ? `Agent IA déconnecté (${err}). Réponse locale — « ${snippet} ».`
+        : `AI agent disconnected (${err}). Local reply — “${snippet}”.`
+      : fr
+        ? `Agent IA hors ligne (aucune clé live). Moteur local — message reçu (« ${snippet} »). Réglez OPENAI_API_KEY sur Railway.`
+        : `AI agent offline (no live key). Local engine — got “${snippet}”. Set OPENAI_API_KEY on Railway.`;
+  return { text, provider: "local" as const, mode: "local", connected: false, error: err || "no_live_provider" };
 }

@@ -33,6 +33,7 @@ import { ChatbotDock } from "../pages/Chatbot";
 
 const NAV = [
   { to: "/app", icon: LayoutDashboard, key: "dashboard" as const, end: true },
+  { to: "/app/chat", icon: Bot, key: "chat" as const },
   { to: "/app/players", icon: Users, key: "players" as const },
   { to: "/app/tactics", icon: Brain, key: "tactics" as const },
   { to: "/app/video", icon: Video, key: "video" as const },
@@ -42,7 +43,6 @@ const NAV = [
   { to: "/app/performance", icon: Activity, key: "performance" as const },
   { to: "/app/calendar", icon: CalendarDays, key: "calendar" as const },
   { to: "/app/messages", icon: MessageSquare, key: "messages" as const },
-  { to: "/app/chat", icon: Bot, key: "chat" as const },
   { to: "/app/design", icon: Palette, key: "design" as const },
   { to: "/app/control", icon: Cpu, key: "control" as const },
   { to: "/app/agents", icon: Sparkles, key: "agents" as const },
@@ -105,6 +105,16 @@ export function AppShell() {
             >
               <item.icon className="h-4 w-4" />
               {t.nav[item.key]}
+              {item.key === "chat" ? (
+                <span
+                  className={`ml-auto h-2 w-2 rounded-full ${
+                    integrations?.ai.connected || (integrations?.ai.mode && integrations.ai.mode !== "local")
+                      ? "bg-emerald-400"
+                      : "bg-amber-400"
+                  }`}
+                  title={integrations?.ai.label}
+                />
+              ) : null}
             </NavLink>
           ))}
         </nav>
@@ -191,14 +201,28 @@ export function AppShell() {
           </div>
         )}
         {integrations && (
-          <div className="bg-emerald-50 px-4 py-1 text-[11px] text-emerald-900">
+          <div
+            className={`px-4 py-1 text-[11px] ${
+              integrations.ai.connected || integrations.ai.mode !== "local"
+                ? "bg-emerald-50 text-emerald-900"
+                : "bg-amber-50 text-amber-900"
+            }`}
+          >
+            {integrations.ai.connected || integrations.ai.mode !== "local"
+              ? locale === "fr"
+                ? "Agent IA activé"
+                : "AI agent on"
+              : locale === "fr"
+                ? "Agent IA hors ligne"
+                : "AI agent offline"}
+            {" · "}
             {integrations.ai.label} · {integrations.stripe.label} · {integrations.email.label}
           </div>
         )}
         <main className="flex-1 p-4 md:p-6">
           <Outlet />
         </main>
-        {location.pathname !== "/app/chat" ? <ChatbotDock /> : null}
+        {location.pathname !== "/app/chat" && location.pathname !== "/app/agents" ? <ChatbotDock /> : null}
         <footer className="border-t border-slate-200 px-6 py-3 text-center text-xs text-slate-400">
           © 2026 Royal Goose Elite Platform — {club?.name ?? "Multi-clubs"}
         </footer>

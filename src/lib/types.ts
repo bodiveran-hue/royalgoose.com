@@ -309,7 +309,12 @@ export interface AppState {
 }
 
 export interface IntegrationsStatus {
-  ai: { mode: "chatbotai" | "openai" | "anthropic" | "deepseek" | "local"; label: string; fallback?: boolean };
+  ai: {
+    mode: "chatbotai" | "openai" | "anthropic" | "deepseek" | "local";
+    label: string;
+    fallback?: boolean;
+    connected?: boolean;
+  };
   chatbot?: { enabled: boolean; label: string; widget: boolean; embed: boolean };
   stripe: { mode: "stripe" | "local"; label: string };
   google: { mode: "oauth" | "local"; label: string };

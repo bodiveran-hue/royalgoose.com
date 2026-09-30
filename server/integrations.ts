@@ -16,7 +16,7 @@ export function integrationStatus(): IntegrationsStatus {
   const smtp = Boolean(process.env.SMTP_URL);
   const yolo = Boolean(process.env.YOLO_VISION_URL);
   return {
-    ai: { mode: ai.mode, label: ai.label, fallback: ai.fallback },
+    ai: { mode: ai.mode, label: ai.label, fallback: ai.fallback, connected: ai.connected },
     chatbot: {
       enabled: true,
       label: bot.label,

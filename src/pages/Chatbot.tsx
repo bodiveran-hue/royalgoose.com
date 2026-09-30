@@ -2,13 +2,56 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, Send } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { Badge, Button, Card, PageHeader } from "../components/ui";
-import { sendChat } from "../lib/api";
+import { sendChat, type ChatReply } from "../lib/api";
+import type { IntegrationsStatus } from "../lib/types";
 
 type Turn = { role: "user" | "assistant"; content: string; mode?: string };
 
+export function providerDisplayName(mode?: string) {
+  if (mode === "openai") return "ChatGPT";
+  if (mode === "chatbotai") return "ChatBotAI";
+  if (mode === "anthropic") return "Claude";
+  if (mode === "deepseek") return "DeepSeek";
+  if (mode === "local") return "local";
+  return mode || "";
+}
+
+export function agentIsOn(integrations: IntegrationsStatus | null, last?: Pick<ChatReply, "connected" | "provider">) {
+  if (last && typeof last.connected === "boolean") return last.connected;
+  if (!integrations?.ai) return false;
+  if (typeof integrations.ai.connected === "boolean") return integrations.ai.connected;
+  return integrations.ai.mode !== "local";
+}
+
+export function AgentStatusChip({ last }: { last?: Pick<ChatReply, "connected" | "provider" | "error"> }) {
+  const { locale, integrations } = useApp();
+  const fr = locale !== "en";
+  const on = agentIsOn(integrations, last);
+  const mode = last?.connected ? last.provider : last && last.connected === false ? "local" : integrations?.ai.mode;
+  const name = providerDisplayName(mode) || "ChatGPT";
+  const rawError = last?.error && last.error !== "no_live_provider" ? last.error : undefined;
+  const label = on
+    ? fr
+      ? `Agent IA activé · ${name}`
+      : `AI agent on · ${name}`
+    : rawError
+      ? fr
+        ? `Agent IA déconnecté · ${rawError}`
+        : `AI agent disconnected · ${rawError}`
+      : fr
+        ? "Agent IA hors ligne · local"
+        : "AI agent offline · local";
+  return (
+    <Badge tone={on ? "green" : "gold"}>
+      <span className={`h-1.5 w-1.5 rounded-full ${on ? "bg-emerald-600" : "bg-amber-500"}`} />
+      {label}
+    </Badge>
+  );
+}
+
 export function ChatbotPage() {
   const { locale, integrations } = useApp();
-  const fr = locale === "fr";
+  const fr = locale !== "en";
   const [embedUrl, setEmbedUrl] = useState("");
   const [site, setSite] = useState("https://chatbotai.com");
 
@@ -25,12 +68,13 @@ export function ChatbotPage() {
   return (
     <div>
       <PageHeader
-        title="ChatBotAI"
+        title={fr ? "Agent IA" : "AI Agent"}
         subtitle={
           fr
-            ? "Assistant club — messages via le serveur Node (clés jamais dans le navigateur)."
-            : "Club assistant — messages go through the Node server (keys never in the browser)."
+            ? "ChatBotAI dans l'app — les messages passent par le serveur Node (clés jamais dans le navigateur)."
+            : "ChatBotAI in the app — messages go through the Node server (keys never in the browser)."
         }
+        actions={<AgentStatusChip />}
       />
       <p className="mb-4 text-sm text-slate-600">
         {fr ? "Source : " : "Source: "}
@@ -63,16 +107,34 @@ export function ChatTranscript({ locale, tall = false }: { locale: string; tall?
   const fr = locale !== "en";
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [last, setLast] = useState<Pick<ChatReply, "connected" | "provider" | "error">>();
   const [turns, setTurns] = useState<Turn[]>([
     {
       role: "assistant",
       content: fr
-        ? "ChatBotAI Royal Goose prêt. Posez une question tactique, scout, fatigue ou transfert."
-        : "Royal Goose ChatBotAI ready. Ask about tactics, scouting, fatigue or transfers.",
+        ? "Agent IA Royal Goose prêt. Posez une question tactique, scout, fatigue ou transfert."
+        : "Royal Goose AI agent ready. Ask about tactics, scouting, fatigue or transfers.",
       mode: "intro",
     },
   ]);
   const bottom = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setTurns((prev) => {
+      if (prev.length === 1 && prev[0].mode === "intro") {
+        return [
+          {
+            role: "assistant",
+            content: fr
+              ? "Agent IA Royal Goose prêt. Posez une question tactique, scout, fatigue ou transfert."
+              : "Royal Goose AI agent ready. Ask about tactics, scouting, fatigue or transfers.",
+            mode: "intro",
+          },
+        ];
+      }
+      return prev;
+    });
+  }, [fr]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
@@ -90,13 +152,17 @@ export function ChatTranscript({ locale, tall = false }: { locale: string; tall?
         .filter((t) => t.mode !== "intro")
         .map((t) => ({ role: t.role, content: t.content }));
       const out = await sendChat(message, locale, history.slice(0, -1));
-      setTurns([...nextTurns, { role: "assistant", content: out.text, mode: out.mode }]);
+      setLast({ connected: out.connected, provider: out.provider, error: out.error });
+      setTurns([...nextTurns, { role: "assistant", content: out.text, mode: out.mode || out.provider }]);
     } catch {
+      setLast({ connected: false, provider: "local", error: "server_unreachable" });
       setTurns([
         ...nextTurns,
         {
           role: "assistant",
-          content: fr ? "Le serveur chat n'a pas répondu. Vérifiez npm start / l'API." : "Chat server did not respond. Check npm start / the API.",
+          content: fr
+            ? "Agent IA déconnecté — le serveur chat n'a pas répondu. Vérifiez npm start / l'API."
+            : "AI agent disconnected — chat server did not respond. Check npm start / the API.",
           mode: "error",
         },
       ]);
@@ -107,6 +173,9 @@ export function ChatTranscript({ locale, tall = false }: { locale: string; tall?
 
   return (
     <Card className="flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
+        <AgentStatusChip last={last} />
+      </div>
       <div className={`space-y-3 overflow-y-auto p-4 ${tall ? "min-h-[360px] max-h-[560px]" : "h-72"}`}>
         {turns.map((t, i) => (
           <div key={`${t.role}-${i}`} className={`flex ${t.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -117,7 +186,17 @@ export function ChatTranscript({ locale, tall = false }: { locale: string; tall?
             >
               <p>{t.content}</p>
               {t.mode && t.mode !== "intro" ? (
-                <p className={`mt-1 text-[10px] ${t.role === "user" ? "text-emerald-100" : "text-slate-400"}`}>{t.mode}</p>
+                <p className={`mt-1 text-[10px] ${t.role === "user" ? "text-emerald-100" : "text-slate-400"}`}>
+                  {t.mode === "local"
+                    ? fr
+                      ? "moteur local — agent déconnecté"
+                      : "local engine — agent disconnected"
+                    : t.mode === "openai"
+                      ? "ChatGPT"
+                      : t.mode === "chatbotai"
+                        ? "ChatBotAI"
+                        : t.mode}
+                </p>
               ) : null}
             </div>
           </div>
@@ -126,31 +205,34 @@ export function ChatTranscript({ locale, tall = false }: { locale: string; tall?
         <div ref={bottom} />
       </div>
       <form
-        className="flex gap-2 border-t border-slate-200 p-3"
+        className="border-t border-slate-200 p-3"
         onSubmit={(e) => {
           e.preventDefault();
           void send();
         }}
       >
-        <input
-          className="h-10 flex-1 rounded-full border border-slate-200 px-4 text-sm"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={fr ? "Votre message…" : "Your message…"}
-        />
-        <Button type="submit" disabled={busy || !input.trim()} size="sm">
-          <Send className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center rounded-xl border border-slate-200 bg-white ring-emerald-600/30 focus-within:ring-4">
+          <input
+            className="h-10 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={fr ? "Votre message…" : "Your message…"}
+          />
+          <Button type="submit" disabled={busy || !input.trim()} size="sm" className="mr-1 shrink-0">
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </form>
     </Card>
   );
 }
 
 export function ChatbotDock() {
-  const { locale } = useApp();
-  const fr = locale === "fr";
+  const { locale, integrations } = useApp();
+  const fr = locale !== "en";
   const [open, setOpen] = useState(false);
   const [widgetId, setWidgetId] = useState("");
+  const on = agentIsOn(integrations);
 
   useEffect(() => {
     void fetch("/api/chatbot/config")
@@ -177,11 +259,11 @@ export function ChatbotDock() {
   return (
     <>
       {open ? (
-        <div className="fixed bottom-24 right-4 z-50 w-[min(100vw-2rem,22rem)] rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div className="fixed bottom-24 right-6 z-50 w-[min(100vw-2rem,22rem)] rounded-2xl border border-slate-200 bg-white shadow-xl">
           <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
             <span className="flex items-center gap-2 text-sm font-semibold">
               <Bot className="h-4 w-4 text-emerald-700" />
-              ChatBotAI
+              {fr ? "Agent IA" : "AI Agent"}
             </span>
             <button className="text-xs text-slate-500" onClick={() => setOpen(false)}>
               {fr ? "Fermer" : "Close"}
@@ -194,11 +276,14 @@ export function ChatbotDock() {
       ) : null}
       <button
         type="button"
-        className="fixed bottom-5 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-700 text-white shadow-lg hover:bg-emerald-800"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-700 text-white shadow-lg hover:bg-emerald-800"
         onClick={() => setOpen((v) => !v)}
-        aria-label="ChatBotAI"
+        aria-label={fr ? "Agent IA" : "AI Agent"}
       >
         <Bot className="h-6 w-6" />
+        <span
+          className={`absolute right-1 top-1 h-3 w-3 rounded-full border-2 border-white ${on ? "bg-emerald-400" : "bg-amber-400"}`}
+        />
       </button>
       {widgetId ? (
         <Badge tone="green" className="sr-only">

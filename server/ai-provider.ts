@@ -56,6 +56,7 @@ export function selectAiProvider(env: EnvLike = process.env): {
   label: string;
   fallback: boolean;
   intended: "openai";
+  connected: boolean;
 } {
   if (hasKey(env.CHATBOTAI_API_KEY)) {
     return {
@@ -63,6 +64,7 @@ export function selectAiProvider(env: EnvLike = process.env): {
       label: "ChatBotAI (proxy) · ChatGPT fallback prêt",
       fallback: false,
       intended: "openai",
+      connected: true,
     };
   }
   if (hasKey(env.OPENAI_API_KEY)) {
@@ -71,6 +73,7 @@ export function selectAiProvider(env: EnvLike = process.env): {
       label: `ChatGPT (OpenAI) · ${openaiModel(env)}`,
       fallback: false,
       intended: "openai",
+      connected: true,
     };
   }
   if (hasKey(env.ANTHROPIC_API_KEY)) {
@@ -79,6 +82,7 @@ export function selectAiProvider(env: EnvLike = process.env): {
       label: "Claude (Anthropic) — fallback (OPENAI_API_KEY absente)",
       fallback: true,
       intended: "openai",
+      connected: true,
     };
   }
   if (hasKey(env.DEEPSEEK_API_KEY)) {
@@ -87,6 +91,7 @@ export function selectAiProvider(env: EnvLike = process.env): {
       label: "DeepSeek — fallback (OPENAI_API_KEY absente)",
       fallback: true,
       intended: "openai",
+      connected: true,
     };
   }
   return {
@@ -94,6 +99,7 @@ export function selectAiProvider(env: EnvLike = process.env): {
     label: "ChatGPT (OpenAI) — clé absente, moteur local",
     fallback: true,
     intended: "openai",
+    connected: false,
   };
 }
 
