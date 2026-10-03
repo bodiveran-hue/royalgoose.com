@@ -128,12 +128,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(res.token);
       sessionStorage.setItem("rg_uid", res.user.id);
       setUser(res.user);
-      const payload = await fetchState();
-      setStateRaw(payload.state);
-      setIntegrations(payload.integrations);
+      try {
+        const payload = await fetchState();
+        setStateRaw(payload.state);
+        setIntegrations(payload.integrations);
+      } catch {
+        return locale === "fr"
+          ? "Session ouverte, mais les données n'ont pas pu être chargées."
+          : "Signed in, but app data failed to load.";
+      }
       return null;
-    } catch {
-      return locale === "fr" ? "Identifiants invalides" : "Invalid credentials";
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "invalid") return locale === "fr" ? "Identifiants invalides" : "Invalid credentials";
+      return locale === "fr" ? "Connexion impossible (API)." : "Login failed (API).";
     }
   }, [locale]);
 

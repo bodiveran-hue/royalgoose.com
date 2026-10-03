@@ -37,21 +37,44 @@ function migrateIdentity(state: AppState): AppState {
     users: state.users.map((u) =>
       u.id === "u_super" ? { ...u, name: "Bodi Awono", email: "emma.t@example.net", avatar: "BA" } : u,
     ),
-    audit: state.audit.map((a) => (a.user === "Amina Ngo" ? { ...a, user: "Bodi Awono" } : a)),
+    audit: (state.audit || []).map((a) => (a.user === "Amina Ngo" ? { ...a, user: "Bodi Awono" } : a)),
   };
+}
+
+function usableDb(state: unknown): state is AppState {
+  if (!state || typeof state !== "object") return false;
+  const s = state as AppState;
+  return Array.isArray(s.users) && Array.isArray(s.clubs);
+}
+
+function seedDb(): AppState {
+  const seeded = hashUsers(createSeed());
+  fs.writeFileSync(DB, JSON.stringify(seeded, null, 2));
+  return seeded;
+}
+
+/** Restore missing seed/demo accounts on a persisted volume without wiping existing data. */
+function ensureDemoUsers(state: AppState): AppState {
+  const seeded = createSeed().users;
+  const have = new Set(state.users.map((u) => u.id));
+  const missing = seeded.filter((u) => !have.has(u.id));
+  if (!missing.length) return state;
+  return hashUsers({ ...state, users: [...state.users, ...missing] });
 }
 
 function loadDb(): AppState {
   ensureDir();
-  if (!fs.existsSync(DB)) {
-    const seeded = hashUsers(createSeed());
-    fs.writeFileSync(DB, JSON.stringify(seeded, null, 2));
-    return seeded;
+  if (!fs.existsSync(DB)) return seedDb();
+  try {
+    const raw = JSON.parse(fs.readFileSync(DB, "utf8")) as AppState;
+    if (!usableDb(raw) || raw.users.length === 0) return seedDb();
+    const migrated = hashUsers(migrateIdentity(raw));
+    const next = ensureDemoUsers(migrated);
+    if (JSON.stringify(raw) !== JSON.stringify(next)) fs.writeFileSync(DB, JSON.stringify(next, null, 2));
+    return next;
+  } catch {
+    return seedDb();
   }
-  const raw = JSON.parse(fs.readFileSync(DB, "utf8")) as AppState;
-  const migrated = hashUsers(migrateIdentity(raw));
-  if (JSON.stringify(raw) !== JSON.stringify(migrated)) fs.writeFileSync(DB, JSON.stringify(migrated, null, 2));
-  return migrated;
 }
 
 function saveDb(state: AppState) {
